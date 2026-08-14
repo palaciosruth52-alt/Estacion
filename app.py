@@ -58,73 +58,55 @@ def haversine(lat1, lon1, lat2, lon2):
   return R * c
 
 
-# Componente HTML + JS para capturar la geolocalización del navegador automáticamente
-geolocation_code = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-</head>
-<body>
-    <div id="status" style="font-family: sans-serif; color: #555; font-size: 14px; text-align: center; padding: 10px;">
-        🔄 Solicitando acceso al GPS del dispositivo...
-    </div>
-
-    <script>
-        function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(showPosition, showError, {timeout: 10000, enableHighAccuracy: true});
-            } else {
-                document.getElementById("status").innerHTML = "❌ La geolocalización no es soportada por este navegador.";
-            }
-        }
-
-        function showPosition(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            document.getElementById("status").innerHTML = "✅ ¡Ubicación detectada con éxito!";
-            
-            // Enviar coordenadas a Streamlit mediante URL parameters o recarga con query params
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('lat', lat);
-            url.searchParams.set('lon', lon);
-            
-            if (window.parent.location.href !== url.href) {
-                window.parent.location.href = url.href;
-            }
-        }
-
-        function showError(error) {
-            let msg = "Error desconocido.";
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    msg = "❌ Permiso de ubicación denegado. Por favor actívelo en su navegador.";
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    msg = "❌ Información de ubicación no disponible.";
-                    break;
-                case error.TIMEOUT:
-                    msg = "❌ Tiempo de espera agotado para obtener la ubicación.";
-                    break;
-            }
-            document.getElementById("status").innerHTML = msg;
-        }
-
-        getLocation();
-    </script>
-</body>
-</html>
-"""
-
-# Renderizar el componente de ubicación
-components.html(geolocation_code, height=60)
-
-# Obtener los parámetros de la URL enviados por JavaScript
+# Verificamos si ya tenemos las coordenadas en la URL
 query_params = st.query_params
 user_lat = query_params.get("lat")
 user_lon = query_params.get("lon")
 
-if user_lat and user_lon:
+# Si NO tenemos las coordenadas, pedimos la geolocalización
+if not user_lat or not user_lon:
+  geolocation_code = """
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body>
+        <div id="status" style="font-family: sans-serif; color: #555; font-size: 14px; text-align: center; padding: 10px;">
+            🔄 Solicitando acceso al GPS del dispositivo...
+        </div>
+        <script>
+            function getLocation() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(showPosition, showError, {timeout: 10000, enableHighAccuracy: true});
+                } else {
+                    document.getElementById("status").innerHTML = "❌ La geolocalización no es soportada.";
+                }
+            }
+            function showPosition(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                document.getElementById("status").innerHTML = "✅ ¡Ubicación detectada con éxito!";
+                
+                const url = new URL(window.parent.location.href);
+                url.searchParams.set('lat', lat);
+                url.searchParams.set('lon', lon);
+                window.parent.location.href = url.href;
+            }
+            function showError(error) {
+                document.getElementById("status").innerHTML = "❌ Permiso de ubicación denegado o no disponible.";
+            }
+            getLocation();
+        </script>
+    </body>
+    </html>
+    """
+  components.html(geolocation_code, height=60)
+  st.info(
+      "Por favor, permita el acceso a su ubicación cuando el navegador lo"
+      " solicite."
+  )
+
+# Si YA tenemos las coordenadas, calculamos y mostramos el resultado
+else:
   try:
     lat_f = float(user_lat)
     lon_f = float(user_lon)
@@ -165,10 +147,9 @@ if user_lat and user_lon:
     ]
     st.map(map_data)
 
+    if st.button("🔄 Reiniciar / Cambiar ubicación"):
+      st.query_params.clear()
+      st.rerun()
+
   except ValueError:
     st.error("Coordenadas inválidas.")
-else:
-  st.info(
-      "Por favor, permita el acceso a su ubicación cuando el navegador lo"
-      " solicite para calcular las estaciones cercanas."
-  )
