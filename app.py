@@ -1,6 +1,6 @@
 import math
 import streamlit as st
-from streamlit_geolocation import streamlit_geolocation
+import streamlit.components.v1 as components
 
 # Configuración de la página
 st.set_page_config(
@@ -9,11 +9,11 @@ st.set_page_config(
 
 st.title("🚨 Estaciones Policiales Cercanas")
 st.write(
-    "Esta aplicación detecta tu ubicación actual automáticamente y encuentra"
-    " las 3 estaciones policiales más cercanas."
+    "Esta aplicación detecta tu ubicación actual automáticamente mediante GPS y"
+    " encuentra las 3 estaciones policiales más cercanas."
 )
 
-# 1. Lista de al menos 5 estaciones policiales
+# Lista de estaciones policiales de referencia
 stations = [
     {
         "nombre": "Estación Policial Monjarás",
@@ -58,55 +58,117 @@ def haversine(lat1, lon1, lat2, lon2):
   return R * c
 
 
-# 2. Obtener la ubicación automática del dispositivo mediante GPS
-st.subheader("📍 Tu Ubicación")
-st.write("Haz clic en el botón para permitir el acceso a tu GPS:")
-loc = streamlit_geolocation()
+# Componente HTML + JS para capturar la geolocalización del navegador automáticamente
+geolocation_code = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+</head>
+<body>
+    <div id="status" style="font-family: sans-serif; color: #555; font-size: 14px; text-align: center; padding: 10px;">
+        🔄 Solicitando acceso al GPS del dispositivo...
+    </div>
 
-user_lat = None
-user_lon = None
+    <script>
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(showPosition, showError, {timeout: 10000, enableHighAccuracy: true});
+            } else {
+                document.getElementById("status").innerHTML = "❌ La geolocalización no es soportada por este navegador.";
+            }
+        }
 
-if loc and loc.get("latitude") and loc.get("longitude"):
-  user_lat = loc["latitude"]
-  user_lon = loc["longitude"]
-  st.success(f"¡Ubicación detectada con éxito!")
+        function showPosition(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            document.getElementById("status").innerHTML = "✅ ¡Ubicación detectada con éxito!";
+            
+            // Enviar coordenadas a Streamlit mediante URL parameters o recarga con query params
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('lat', lat);
+            url.searchParams.set('lon', lon);
+            
+            if (window.parent.location.href !== url.href) {
+                window.parent.location.href = url.href;
+            }
+        }
+
+        function showError(error) {
+            let msg = "Error desconocido.";
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    msg = "❌ Permiso de ubicación denegado. Por favor actívelo en su navegador.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    msg = "❌ Información de ubicación no disponible.";
+                    break;
+                case error.TIMEOUT:
+                    msg = "❌ Tiempo de espera agotado para obtener la ubicación.";
+                    break;
+            }
+            document.getElementById("status").innerHTML = msg;
+        }
+
+        getLocation();
+    </script>
+</body>
+</html>
+"""
+
+# Renderizar el componente de ubicación
+components.html(geolocation_code, height=60)
+
+# Obtener los parámetros de la URL enviados por JavaScript
+query_params = st.query_params
+user_lat = query_params.get("lat")
+user_lon = query_params.get("lon")
+
+if user_lat and user_lon:
+  try:
+    lat_f = float(user_lat)
+    lon_f = float(user_lon)
+
+    st.success(
+        f"Coordenadas actuales detectadas: Lat: {lat_f:.4f}, Lon: {lon_f:.4f}"
+    )
+
+    # Calcular distancias
+    for st_info in stations:
+      st_info["distancia_km"] = round(
+          haversine(lat_f, lon_f, st_info["lat"], st_info["lon"]), 2
+      )
+
+    # Ordenar y seleccionar el Top 3
+    sorted_stations = sorted(stations, key=lambda x: x["distancia_km"])
+    top_3 = sorted_stations[:3]
+
+    st.markdown("---")
+    st.subheader("🏆 Top 3 Estaciones Policiales Más Cercanas")
+
+    for i, station in enumerate(top_3):
+      st.markdown(
+          f"""
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid #2563eb; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: #1e3a8a;">#{i+1} - {station['nombre']}</h4>
+                <p style="margin: 5px 0 0 0; color: #333;">Distancia aproximada: <b>{station['distancia_km']} km</b></p>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
+
+    # Mostrar mapa interactivo
+    st.markdown("---")
+    st.subheader("🗺️ Mapa de Ubicaciones")
+    map_data = [{"lat": lat_f, "lon": lon_f}] + [
+        {"lat": s["lat"], "lon": s["lon"]} for s in top_3
+    ]
+    st.map(map_data)
+
+  except ValueError:
+    st.error("Coordenadas inválidas.")
 else:
   st.info(
-      "Esperando coordenadas de ubicación... (Presiona el botón del navegador"
-      " si te pide permisos)."
+      "Por favor, permita el acceso a su ubicación cuando el navegador lo"
+      " solicite para calcular las estaciones cercanas."
   )
-
-# 3 y 4. Si ya tenemos la ubicación, calcular y mostrar las más cercanas
-if user_lat and user_lon:
-  # Calcular distancias
-  for st_info in stations:
-    st_info["distancia_km"] = round(
-        haversine(user_lat, user_lon, st_info["lat"], st_info["lon"]), 2
-    )
-
-  # Ordenar de menor a mayor distancia y seleccionar el Top 3
-  sorted_stations = sorted(stations, key=lambda x: x["distancia_km"])
-  top_3 = sorted_stations[:3]
-
-  st.markdown("---")
-  st.subheader("🏆 Top 3 Estaciones Policiales Más Cercanas")
-
-  for i, station in enumerate(top_3):
-    st.markdown(
-        f"""
-        <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid #2563eb; margin-bottom: 10px;">
-            <h4 style="margin: 0; color: #1e3a8a;">#{i+1} - {station['nombre']}</h4>
-            <p style="margin: 5px 0 0 0; color: #333;">Distancia aproximada: <b>{station['distancia_km']} km</b></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-  # 5. Mostrar un mapa interactivo con las estaciones cercanas
-  st.markdown("---")
-  st.subheader("🗺️ Mapa de Ubicaciones")
-  # Preparamos los datos para st.map (necesita columnas 'lat' y 'lon')
-  map_data = [{"lat": user_lat, "lon": user_lon}] + [
-      {"lat": s["lat"], "lon": s["lon"]} for s in top_3
-  ]
-  st.map(map_data)
