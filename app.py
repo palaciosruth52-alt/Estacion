@@ -1,142 +1,191 @@
-import math
 import streamlit as st
+import math
+from streamlit_geolocation import streamlit_geolocation
 
-# Configuración de la página
+# Configuración
 st.set_page_config(
-    page_title="Estaciones Policiales Cercanas", page_icon="🚨", layout="centered"
+    page_title="Estaciones Policiales Más Cercanas",
+    page_icon="🚔",
+    layout="centered"
 )
 
-st.title("🚨 Estaciones Policiales Cercanas")
+# -----------------------------------------
+# ESTACIONES POLICIALES
+# -----------------------------------------
+
+estaciones = [
+    {
+        "nombre": "Estación Policial Central",
+        "latitud": 13.3000,
+        "longitud": -87.1900
+    },
+    {
+        "nombre": "Estación Policial Norte",
+        "latitud": 13.3150,
+        "longitud": -87.1800
+    },
+    {
+        "nombre": "Estación Policial Sur",
+        "latitud": 13.2850,
+        "longitud": -87.2000
+    },
+    {
+        "nombre": "Estación Policial Este",
+        "latitud": 13.3050,
+        "longitud": -87.1700
+    },
+    {
+        "nombre": "Estación Policial Oeste",
+        "latitud": 13.2950,
+        "longitud": -87.2100
+    }
+]
+
+
+# -----------------------------------------
+# CALCULAR DISTANCIA
+# -----------------------------------------
+
+def calcular_distancia(lat1, lon1, lat2, lon2):
+
+    radio_tierra = 6371
+
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+
+    diferencia_lat = lat2 - lat1
+    diferencia_lon = lon2 - lon1
+
+    a = (
+        math.sin(diferencia_lat / 2) ** 2
+        + math.cos(lat1)
+        * math.cos(lat2)
+        * math.sin(diferencia_lon / 2) ** 2
+    )
+
+    c = 2 * math.atan2(
+        math.sqrt(a),
+        math.sqrt(1 - a)
+    )
+
+    return radio_tierra * c
+
+
+# -----------------------------------------
+# INTERFAZ
+# -----------------------------------------
+
+st.title("🚔 Estaciones Policiales Más Cercanas")
+
 st.write(
-    "Selecciona tu zona actual o ingresa tus coordenadas para encontrar las 3"
-    " estaciones policiales más cercanas:"
+    "Permite que la aplicación acceda a tu ubicación "
+    "para encontrar las estaciones policiales más cercanas."
 )
 
-# Lista de estaciones policiales de referencia
-stations = [
-    {
-        "nombre": "Estación Policial Monjarás",
-        "lat": 13.1320,
-        "lon": -87.3850,
-    },
-    {
-        "nombre": "Jefatura Policial Choluteca",
-        "lat": 13.3032,
-        "lon": -87.1939,
-    },
-    {
-        "nombre": "Sub-Estación Marcovia",
-        "lat": 13.3150,
-        "lon": -87.3050,
-    },
-    {
-        "nombre": "Puesto Policial San Lorenzo",
-        "lat": 13.4150,
-        "lon": -87.4420,
-    },
-    {
-        "nombre": "Estación Policial El Triunfo",
-        "lat": 13.0450,
-        "lon": -87.0350,
-    },
-]
+st.divider()
 
+st.subheader("📍 Obtener mi ubicación")
 
-# Fórmula de Haversine para calcular la distancia en kilómetros
-def haversine(lat1, lon1, lat2, lon2):
-  R = 6371.0
-  dlat = math.radians(lat2 - lat1)
-  dlon = math.radians(lon2 - lon1)
-  a = (
-      math.sin(dlat / 2) ** 2
-      + math.cos(math.radians(lat1))
-      * math.cos(math.radians(lat2))
-      * math.sin(dlon / 2) ** 2
-  )
-  c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-  return R * c
+st.write(
+    "Presiona el botón y acepta el permiso de ubicación "
+    "cuando tu navegador lo solicite."
+)
 
+location = streamlit_geolocation()
 
-# Estado inicial de coordenadas
-if "lat" not in st.session_state:
-  st.session_state.lat = 13.3032
-if "lon" not in st.session_state:
-  st.session_state.lon = -87.1939
+# -----------------------------------------
+# VERIFICAR UBICACIÓN
+# -----------------------------------------
 
-# 1. Selección rápida por zonas (Solución práctica y sin errores de GPS)
-st.subheader("📍 Selección rápida por zona")
-col_z1, col_z2, col_z3 = st.columns(3)
+if location:
 
-with col_z1:
-  if st.button("🏙️ Choluteca"):
-    st.session_state.lat = 13.3032
-    st.session_state.lon = -87.1939
-with col_z2:
-  if st.button("🏖️ Marcovia"):
-    st.session_state.lat = 13.3150
-    st.session_state.lon = -87.3050
-with col_z3:
-  if st.button("🌊 San Lorenzo"):
-    st.session_state.lat = 13.4150
-    st.session_state.lon = -87.4420
+    latitud = location.get("latitude")
+    longitud = location.get("longitude")
 
-col_z4, col_z5 = st.columns(2)
-with col_z4:
-  if st.button("🌴 Monjarás"):
-    st.session_state.lat = 13.1320
-    st.session_state.lon = -87.3850
-with col_z5:
-  if st.button("⭐ El Triunfo"):
-    st.session_state.lat = 13.0450
-    st.session_state.lon = -87.0350
+    if latitud is not None and longitud is not None:
 
-st.markdown("---")
+        st.success("✅ Ubicación obtenida correctamente")
 
-# 2. Opción de coordenadas manuales avanzadas
-st.subheader("⚙️ O ingresa tus coordenadas exactas:")
-col1, col2 = st.columns(2)
-with col1:
-  manual_lat = st.number_input(
-      "Latitud", value=float(st.session_state.lat), format="%.4f"
-  )
-with col2:
-  manual_lon = st.number_input(
-      "Longitud", value=float(st.session_state.lon), format="%.4f"
-  )
+        st.write(f"**Latitud:** {latitud}")
+        st.write(f"**Longitud:** {longitud}")
 
-if st.button("🔍 Buscar Estaciones Cercanas", type="primary"):
-  st.session_state.lat = manual_lat
-  st.session_state.lon = manual_lon
+        resultados = []
 
-# Cálculo y despliegue de resultados
-lat_f = st.session_state.lat
-lon_f = st.session_state.lon
+        # Calcular distancia hacia cada estación
+        for estacion in estaciones:
 
-st.markdown("---")
-st.success(f"Coordenadas activas: Lat: {lat_f:.4f}, Lon: {lon_f:.4f}")
+            distancia = calcular_distancia(
+                latitud,
+                longitud,
+                estacion["latitud"],
+                estacion["longitud"]
+            )
 
-for st_info in stations:
-  st_info["distancia_km"] = round(
-      haversine(lat_f, lon_f, st_info["lat"], st_info["lon"]), 2
-  )
+            resultados.append({
+                "nombre": estacion["nombre"],
+                "latitud": estacion["latitud"],
+                "longitud": estacion["longitud"],
+                "distancia": distancia
+            })
 
-sorted_stations = sorted(stations, key=lambda x: x["distancia_km"])
-top_3 = sorted_stations[:3]
+        # Ordenar por distancia
+        resultados.sort(
+            key=lambda x: x["distancia"]
+        )
 
-st.subheader("🏆 Top 3 Estaciones Policiales Más Cercanas")
-for i, station in enumerate(top_3):
-  st.markdown(
-      f"""
-    <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid #2563eb; margin-bottom: 10px;">
-        <h4 style="margin: 0; color: #1e3a8a;">#{i+1} - {station['nombre']}</h4>
-        <p style="margin: 5px 0 0 0; color: #333;">Distancia aproximada: <b>{station['distancia_km']} km</b></p>
-    </div>
-    """,
-      unsafe_allow_html=True,
-  )
+        # Las 3 estaciones más cercanas
+        estaciones_cercanas = resultados[:3]
 
-st.subheader("🗺️ Mapa de Ubicaciones")
-map_data = [{"lat": lat_f, "lon": lon_f}] + [
-    {"lat": s["lat"], "lon": s["lon"]} for s in top_3
-]
-st.map(map_data)
+        st.subheader(
+            "🚔 Las 3 estaciones más cercanas"
+        )
+
+        for posicion, estacion in enumerate(
+            estaciones_cercanas,
+            start=1
+        ):
+
+            st.markdown(
+                f"""
+                ### {posicion}. 🚔 {estacion["nombre"]}
+
+                📏 **Distancia:** {estacion["distancia"]:.2f} km
+
+                📍 **Coordenadas:**  
+                `{estacion["latitud"]}, {estacion["longitud"]}`
+                """
+            )
+
+            st.divider()
+
+        # -----------------------------------------
+        # MAPA
+        # -----------------------------------------
+
+        st.subheader("🗺️ Ubicación")
+
+        mapa_datos = [
+            {
+                "lat": latitud,
+                "lon": longitud
+            }
+        ]
+
+        for estacion in estaciones_cercanas:
+
+            mapa_datos.append({
+                "lat": estacion["latitud"],
+                "lon": estacion["longitud"]
+            })
+
+        st.map(mapa_datos)
+
+else:
+
+    st.info(
+        "📍 Presiona el botón de ubicación y "
+        "acepta el permiso del navegador."
+    )
