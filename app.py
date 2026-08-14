@@ -1,139 +1,273 @@
-import csv
-import math
 import streamlit as st
+import pandas as pd
+import math
+from streamlit_geolocation import streamlit_geolocation
 
-# Configuración de la página
+# --------------------------------------------------
+# CONFIGURACIÓN DE LA PÁGINA
+# --------------------------------------------------
+
 st.set_page_config(
-    page_title="Estaciones Policiales de Honduras",
-    page_icon="🚨",
-    layout="centered",
+    page_title="Estaciones Policiales Más Cercanas",
+    page_icon="🚔",
+    layout="centered"
 )
 
-st.title("🚨 Estaciones Policiales en Honduras")
+# --------------------------------------------------
+# TÍTULO
+# --------------------------------------------------
+
+st.title("🚔 Estaciones Policiales Más Cercanas")
+
 st.write(
-    "Selecciona una zona rápida o ingresa tus coordenadas. El sistema"
-    " analizará todo el listado nacional y mostrará estrictamente las **3"
-    " estaciones más cercanas**."
+    "Obtén tu ubicación mediante el GPS de tu dispositivo "
+    "y encuentra las tres estaciones policiales más cercanas."
 )
 
+st.divider()
 
-# Cargar estaciones desde el CSV ampliado
+
+# --------------------------------------------------
+# CARGAR ESTACIONES
+# --------------------------------------------------
+
 @st.cache_data
 def cargar_estaciones():
-  stations = []
-  try:
-    with open("stations.csv", mode="r", encoding="utf-8") as archivo:
-      lector = csv.DictReader(archivo)
-      for fila inlector:
-        stations.append({
-            "nombre": fila["nombre"],
-            "lat": float(fila["lat"]),
-            "lon": float(fila["lon"]),
+
+    datos = pd.read_csv("estaciones.csv")
+
+    return datos
+
+
+try:
+
+    estaciones = cargar_estaciones()
+
+except Exception as error:
+
+    st.error(
+        "❌ No se pudo cargar el archivo estaciones.csv"
+    )
+
+    st.stop()
+
+
+# --------------------------------------------------
+# FUNCIÓN PARA CALCULAR DISTANCIA
+# --------------------------------------------------
+
+def calcular_distancia(lat1, lon1, lat2, lon2):
+
+    radio_tierra = 6371
+
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+
+    diferencia_lat = lat2 - lat1
+    diferencia_lon = lon2 - lon1
+
+    a = (
+        math.sin(diferencia_lat / 2) ** 2
+        +
+        math.cos(lat1)
+        * math.cos(lat2)
+        * math.sin(diferencia_lon / 2) ** 2
+    )
+
+    c = 2 * math.atan2(
+        math.sqrt(a),
+        math.sqrt(1 - a)
+    )
+
+    distancia = radio_tierra * c
+
+    return distancia
+
+
+# --------------------------------------------------
+# GPS
+# --------------------------------------------------
+
+st.subheader("📍 Obtener mi ubicación")
+
+st.write(
+    "Presiona el botón y permite el acceso a tu ubicación "
+    "cuando el navegador lo solicite."
+)
+
+ubicacion = streamlit_geolocation()
+
+
+# --------------------------------------------------
+# COMPROBAR UBICACIÓN
+# --------------------------------------------------
+
+if ubicacion:
+
+    latitud = ubicacion.get("latitude")
+    longitud = ubicacion.get("longitude")
+
+    if latitud is not None and longitud is not None:
+
+        st.success("✅ Ubicación obtenida correctamente")
+
+        st.write(
+            f"**Tu latitud:** {latitud:.6f}"
+        )
+
+        st.write(
+            f"**Tu longitud:** {longitud:.6f}"
+        )
+
+        # ------------------------------------------
+        # CALCULAR DISTANCIAS
+        # ------------------------------------------
+
+        resultados = []
+
+        for _, estacion in estaciones.iterrows():
+
+            distancia = calcular_distancia(
+                latitud,
+                longitud,
+                float(estacion["latitud"]),
+                float(estacion["longitud"])
+            )
+
+            resultados.append({
+                "nombre": estacion["nombre"],
+                "departamento": estacion["departamento"],
+                "municipio": estacion["municipio"],
+                "ubicacion": estacion["ubicacion"],
+                "latitud": float(estacion["latitud"]),
+                "longitud": float(estacion["longitud"]),
+                "distancia": distancia
+            })
+
+        # ------------------------------------------
+        # ORDENAR
+        # ------------------------------------------
+
+        resultados.sort(
+            key=lambda x: x["distancia"]
+        )
+
+        # ------------------------------------------
+        # 3 MÁS CERCANAS
+        # ------------------------------------------
+
+        estaciones_cercanas = resultados[:3]
+
+        st.divider()
+
+        st.subheader(
+            "🚔 Las 3 estaciones más cercanas"
+        )
+
+        # ------------------------------------------
+        # MOSTRAR RESULTADOS
+        # ------------------------------------------
+
+        for posicion, estacion in enumerate(
+            estaciones_cercanas,
+            start=1
+        ):
+
+            st.markdown(
+                f"## {posicion}. 🚔 {estacion['nombre']}"
+            )
+
+            st.write(
+                f"📍 **Ubicación:** "
+                f"{estacion['ubicacion']}"
+            )
+
+            st.write(
+                f"🏙️ **Municipio:** "
+                f"{estacion['municipio']}"
+            )
+
+            st.write(
+                f"🏛️ **Departamento:** "
+                f"{estacion['departamento']}"
+            )
+
+            st.write(
+                f"📏 **Distancia:** "
+                f"{estacion['distancia']:.2f} km"
+            )
+
+            st.write(
+                f"🌎 **Coordenadas:** "
+                f"{estacion['latitud']:.6f}, "
+                f"{estacion['longitud']:.6f}"
+            )
+
+            # --------------------------------------
+            # GOOGLE MAPS
+            # --------------------------------------
+
+            enlace_mapa = (
+                "https://www.google.com/maps/search/?api=1"
+                f"&query={estacion['latitud']},"
+                f"{estacion['longitud']}"
+            )
+
+            st.link_button(
+                "🗺️ Ver dónde queda",
+                enlace_mapa
+            )
+
+            st.divider()
+
+        # ------------------------------------------
+        # MAPA
+        # ------------------------------------------
+
+        st.subheader("🗺️ Mapa")
+
+        puntos_mapa = []
+
+        # Ubicación del usuario
+        puntos_mapa.append({
+            "lat": latitud,
+            "lon": longitud
         })
-  except FileNotFoundError:
-    st.error("No se encontró el archivo 'stations.csv' en el repositorio.")
-  return stations
 
+        # Estaciones cercanas
+        for estacion in estaciones_cercanas:
 
-stations = cargar_estaciones()
+            puntos_mapa.append({
+                "lat": estacion["latitud"],
+                "lon": estacion["longitud"]
+            })
 
+        st.map(puntos_mapa)
 
-# Fórmula de Haversine para calcular distancia exacta en kilómetros
-def haversine(lat1, lon1, lat2, lon2):
-  R = 6371.0
-  dlat = math.radians(lat2 - lat1)
-  dlon = math.radians(lon2 - lon1)
-  a = (
-      math.sin(dlat / 2) ** 2
-      + math.cos(math.radians(lat1))
-      * math.cos(math.radians(lat2))
-      * math.sin(dlon / 2) ** 2
-  )
-  c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-  return R * c
+    else:
 
+        st.warning(
+            "⚠️ No fue posible obtener tu ubicación."
+        )
 
-# Estado inicial de coordenadas (Por defecto Choluteca)
-if "lat" not in st.session_state:
-  st.session_state.lat = 13.3032
-if "lon" not in st.session_state:
-  st.session_state.lon = -87.1939
+else:
 
-# Botones de selección rápida
-st.subheader("📍 Selección rápida por ciudad")
-col1, col2, col3 = st.columns(3)
-
-with col1:
-  if st.button("🏙️ Tegucigalpa"):
-    st.session_state.lat = 14.0818
-    st.session_state.lon = -87.2068
-with col2:
-  if st.button("🏭 San Pedro Sula"):
-    st.session_state.lat = 15.5036
-    st.session_state.lon = -88.0250
-with col3:
-  if st.button("☀️ Choluteca"):
-    st.session_state.lat = 13.3032
-    st.session_state.lon = -87.1939
-
-col4, col5 = st.columns(2)
-with col4:
-  if st.button("🌴 La Ceiba"):
-    st.session_state.lat = 15.7593
-    st.session_state.lon = -86.7808
-with col5:
-  if st.button("🏕️ Comayagua"):
-    st.session_state.lat = 14.4556
-    st.session_state.lon = -87.6433
-
-st.markdown("---")
-
-# Coordenadas manuales
-st.subheader("⚙️ O ingresa tus coordenadas exactas:")
-c_col1, c_col2 = st.columns(2)
-with c_col1:
-  manual_lat = st.number_input(
-      "Latitud", value=float(st.session_state.lat), format="%.4f"
-  )
-with c_col2:
-  manual_lon = st.number_input(
-      "Longitud", value=float(st.session_state.lon), format="%.4f"
-  )
-
-if st.button("🔍 Buscar Estaciones Cercanas", type="primary"):
-  st.session_state.lat = manual_lat
-  st.session_state.lon = manual_lon
-
-lat_f = st.session_state.lat
-lon_f = st.session_state.lon
-
-st.markdown("---")
-st.success(f"Coordenadas activas: Lat: {lat_f:.4f}, Lon: {lon_f:.4f}")
-
-if stations:
-  for st_info in stations:
-    st_info["distancia_km"] = round(
-        haversine(lat_f, lon_f, st_info["lat"], st_info["lon"]), 2
+    st.info(
+        "📍 Presiona el botón de ubicación y "
+        "acepta el permiso del navegador."
     )
 
-  # Ordenar todo el listado masivo y seleccionar estrictamente las 3 más cercanas
-  sorted_stations = sorted(stations, key=lambda x: x["distancia_km"])
-  top_3 = sorted_stations[:3]
 
-  st.subheader("🏆 Top 3 Estaciones Policiales Más Cercanas")
-  for i, station in enumerate(top_3):
-    st.markdown(
-        f"""
-        <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; border-left: 5px solid #2563eb; margin-bottom: 10px;">
-            <h4 style="margin: 0; color: #1e3a8a;">#{i+1} - {station['nombre']}</h4>
-            <p style="margin: 5px 0 0 0; color: #333;">Distancia aproximada: <b>{station['distancia_km']} km</b></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+# --------------------------------------------------
+# INFORMACIÓN
+# --------------------------------------------------
 
-  st.subheader("🗺️ Mapa de Ubicaciones")
-  map_data = [{"lat": lat_f, "lon": lon_f}] + [
-      {"lat": s["lat"], "lon": s["lon"]} for s in top_3
-  ]
-  st.map(map_data)
+st.divider()
+
+st.caption(
+    "Proyecto académico de búsqueda de estaciones "
+    "policiales mediante geolocalización."
+)
