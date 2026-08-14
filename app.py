@@ -3,19 +3,11 @@ import pandas as pd
 import math
 from streamlit_geolocation import streamlit_geolocation
 
-# --------------------------------------------------
-# CONFIGURACIÓN DE LA PÁGINA
-# --------------------------------------------------
-
 st.set_page_config(
     page_title="Estaciones Policiales Más Cercanas",
     page_icon="🚔",
     layout="centered"
 )
-
-# --------------------------------------------------
-# TÍTULO
-# --------------------------------------------------
 
 st.title("🚔 Estaciones Policiales Más Cercanas")
 
@@ -25,11 +17,6 @@ st.write(
 )
 
 st.divider()
-
-
-# --------------------------------------------------
-# CARGAR ESTACIONES
-# --------------------------------------------------
 
 @st.cache_data
 def cargar_estaciones():
@@ -50,11 +37,6 @@ except Exception as error:
     )
 
     st.stop()
-
-
-# --------------------------------------------------
-# FUNCIÓN PARA CALCULAR DISTANCIA
-# --------------------------------------------------
 
 def calcular_distancia(lat1, lon1, lat2, lon2):
 
@@ -86,11 +68,6 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
 
     return distancia
 
-
-# --------------------------------------------------
-# GPS
-# --------------------------------------------------
-
 st.subheader("📍 Obtener mi ubicación")
 
 st.write(
@@ -99,11 +76,6 @@ st.write(
 )
 
 ubicacion = streamlit_geolocation()
-
-
-# --------------------------------------------------
-# COMPROBAR UBICACIÓN
-# --------------------------------------------------
 
 if ubicacion:
 
@@ -121,10 +93,6 @@ if ubicacion:
         st.write(
             f"**Tu longitud:** {longitud:.6f}"
         )
-
-        # ------------------------------------------
-        # CALCULAR DISTANCIAS
-        # ------------------------------------------
 
         resultados = []
 
@@ -147,17 +115,9 @@ if ubicacion:
                 "distancia": distancia
             })
 
-        # ------------------------------------------
-        # ORDENAR
-        # ------------------------------------------
-
         resultados.sort(
             key=lambda x: x["distancia"]
         )
-
-        # ------------------------------------------
-        # 3 MÁS CERCANAS
-        # ------------------------------------------
 
         estaciones_cercanas = resultados[:3]
 
@@ -166,10 +126,6 @@ if ubicacion:
         st.subheader(
             "🚔 Las 3 estaciones más cercanas"
         )
-
-        # ------------------------------------------
-        # MOSTRAR RESULTADOS
-        # ------------------------------------------
 
         for posicion, estacion in enumerate(
             estaciones_cercanas,
@@ -206,10 +162,6 @@ if ubicacion:
                 f"{estacion['longitud']:.6f}"
             )
 
-            # --------------------------------------
-            # GOOGLE MAPS
-            # --------------------------------------
-
             enlace_mapa = (
                 "https://www.google.com/maps/search/?api=1"
                 f"&query={estacion['latitud']},"
@@ -222,10 +174,6 @@ if ubicacion:
             )
 
             st.divider()
-
-        # ------------------------------------------
-        # MAPA
-        # ------------------------------------------
 
         st.subheader("🗺️ Mapa")
 
@@ -260,14 +208,3 @@ else:
         "acepta el permiso del navegador."
     )
 
-
-# --------------------------------------------------
-# INFORMACIÓN
-# --------------------------------------------------
-
-st.divider()
-
-st.caption(
-    "Proyecto académico de búsqueda de estaciones "
-    "policiales mediante geolocalización."
-)
