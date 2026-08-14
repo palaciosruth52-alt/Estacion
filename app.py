@@ -63,7 +63,7 @@ query_params = st.query_params
 user_lat = query_params.get("lat")
 user_lon = query_params.get("lon")
 
-# Si NO tenemos las coordenadas, pedimos la geolocalización
+# Si NO tenemos las coordenadas, pedimos la geolocalización automáticamente
 if not user_lat or not user_lon:
   geolocation_code = """
     <!DOCTYPE html>
